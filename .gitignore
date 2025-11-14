@@ -1,0 +1,11 @@
+
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+.DS_Store
+.vscode/
+.idea/"
