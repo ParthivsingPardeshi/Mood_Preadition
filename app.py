@@ -542,7 +542,7 @@ elif "ℹ️ About" in page:
 # Footer
 st.markdown("---")
 st.markdown("""
-<div style="text-align: center; color: white; padding: 20px;">
+<div style="text-align: center; color: black; padding: 20px;">
     <p>🎭 Emotion Detection AI | Powered by Machine Learning & NLP</p>
     <p>Made with ❤️ using Streamlit</p>
 </div>
