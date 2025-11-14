@@ -5,4 +5,4 @@ scikit-learn==1.5.2
 nltk==3.8.1
 plotly==5.17.0
 emoji==2.8.0
-Pillow==10.0.0
+Pillow==10.4.0
