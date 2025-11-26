@@ -32,7 +32,6 @@ def download_nltk_data():
 
 download_nltk_data()
 
-
 # Add utils to path
 sys.path.append('utils')
 from preprocessing import TextPreprocessor
@@ -111,14 +110,13 @@ def load_models():
 
 model, vectorizer, preprocessor, EMOTION_LABELS = load_models()
 
-# Emotion emojis and colors
+# Emotion emojis and colors (NO SURPRISE)
 EMOTION_CONFIG = {
     'sadness': {'emoji': '😢', 'color': '#4A90E2'},
     'joy': {'emoji': '😄', 'color': '#F5A623'},
     'love': {'emoji': '❤️', 'color': '#E91E63'},
     'anger': {'emoji': '😠', 'color': '#D0021B'},
-    'fear': {'emoji': '😨', 'color': '#9013FE'},
-    'surprise': {'emoji': '😮', 'color': '#50E3C2'}
+    'fear': {'emoji': '😨', 'color': '#9013FE'}
 }
 
 # Title
@@ -133,19 +131,18 @@ with st.sidebar:
         "Choose a page",
         ["🔍 Real-time Detection", "📈 Emotion Trends", "📂 Batch Analysis", "ℹ️ About"]
     )
-    
+
     st.markdown("---")
     st.markdown("### 📖 About")
     st.info("""
-    This app uses advanced NLP and Machine Learning to detect 6 emotions:
+    This app detects 5 emotions:
     - 😢 Sadness
     - 😄 Joy
     - ❤️ Love
     - 😠 Anger
     - 😨 Fear
-    - 😮 Surprise
     """)
-    
+
     st.markdown("---")
     st.markdown("**Made with ❤️ using Streamlit**")
 
@@ -155,54 +152,63 @@ if 'emotion_history' not in st.session_state:
 
 # Prediction function
 def predict_emotion(text):
-    """Predict emotion from text"""
+    """Predict emotion from text, removing unwanted labels."""
     if not text.strip():
         return None, None
-    
+
     clean_text = preprocessor.clean_text(text)
     if not clean_text.strip():
         return None, None
-    
+
     text_vec = vectorizer.transform([clean_text])
     prediction = model.predict(text_vec)[0]
     probabilities = model.predict_proba(text_vec)[0]
-    
-    # Create emotions dictionary
+
+    # Create filtered emotion dictionary
     emotions_dict = {}
     for idx, emotion in enumerate(model.classes_):
         emotion_name = EMOTION_LABELS[emotion]
+
+        # Skip "surprise"
+        if emotion_name not in EMOTION_CONFIG:
+            continue
+
         emotions_dict[emotion_name] = probabilities[idx]
-    
+
+    # Adjust predicted emotion if it was "surprise"
     predicted_emotion = EMOTION_LABELS[prediction]
+    if predicted_emotion not in EMOTION_CONFIG:
+        predicted_emotion = max(emotions_dict, key=emotions_dict.get)
+
     return predicted_emotion, emotions_dict
 
 # PAGE 1: Real-time Detection
 if "🔍 Real-time Detection" in page:
     col1, col2 = st.columns([2, 1])
-    
+
     with col1:
         st.markdown("### 💬 Enter Your Text")
         user_input = st.text_area(
             "Type or paste text here...",
             height=200,
-            placeholder="Example: I am so happy today! This is amazing!",
+            placeholder="Example: I am so happy today!",
             key="text_input"
         )
-        
+
         col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
         with col_btn1:
             analyze_button = st.button("🔍 Analyze", use_container_width=True)
         with col_btn2:
             clear_button = st.button("🗑️ Clear", use_container_width=True)
-        
+
         if clear_button:
             st.session_state.text_input = ""
             st.rerun()
-        
+
         if analyze_button and user_input and model:
             with st.spinner("Analyzing emotion..."):
                 emotion, probs = predict_emotion(user_input)
-                
+
                 if emotion and probs:
                     # Save to history
                     st.session_state.emotion_history.append({
@@ -211,15 +217,14 @@ if "🔍 Real-time Detection" in page:
                         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         'confidence': probs[emotion]
                     })
-                    
+
                     # Display result
                     st.markdown("---")
                     st.markdown("### 🎯 Detection Result")
-                    
-                    # Main emotion card
+
                     emoji = EMOTION_CONFIG[emotion]['emoji']
                     color = EMOTION_CONFIG[emotion]['color']
-                    
+
                     st.markdown(f"""
                     <div class="emotion-card">
                         <h1 style="font-size: 80px; margin: 0;">{emoji}</h1>
@@ -229,15 +234,14 @@ if "🔍 Real-time Detection" in page:
                         </p>
                     </div>
                     """, unsafe_allow_html=True)
-                    
+
                     # Probability bar chart
-                    st.markdown("### 📊 Emotion Probability Distribution")
-                    
                     sorted_emotions = sorted(probs.items(), key=lambda x: x[1], reverse=True)
-                    emotions_list = [e[0] for e in sorted_emotions]
-                    values_list = [e[1] for e in sorted_emotions]
+
+                    emotions_list = [e[0] for e in sorted_emotions if e[0] in EMOTION_CONFIG]
+                    values_list = [e[1] for e in sorted_emotions if e[0] in EMOTION_CONFIG]
                     colors_list = [EMOTION_CONFIG[e]['color'] for e in emotions_list]
-                    
+
                     fig = go.Figure(data=[
                         go.Bar(
                             x=emotions_list,
@@ -247,29 +251,26 @@ if "🔍 Real-time Detection" in page:
                             textposition='auto',
                         )
                     ])
-                    
+
                     fig.update_layout(
-                        title="",
                         xaxis_title="Emotions",
                         yaxis_title="Probability",
                         height=400,
                         template="plotly_white",
                         showlegend=False
                     )
-                    
+
                     st.plotly_chart(fig, use_container_width=True)
-                    
+
                     # Radar chart
-                    st.markdown("### 🎯 Emotion Radar")
-                    
                     fig_radar = go.Figure(data=go.Scatterpolar(
-                        r=list(probs.values()),
-                        theta=list(probs.keys()),
+                        r=list(values_list),
+                        theta=list(emotions_list),
                         fill='toself',
                         marker=dict(color='#667eea'),
                         line=dict(color='#764ba2', width=2)
                     ))
-                    
+
                     fig_radar.update_layout(
                         polar=dict(
                             radialaxis=dict(visible=True, range=[0, 1])
@@ -278,11 +279,9 @@ if "🔍 Real-time Detection" in page:
                         template="plotly_white",
                         showlegend=False
                     )
-                    
+
                     st.plotly_chart(fig_radar, use_container_width=True)
-                else:
-                    st.warning("Unable to analyze this text. Please try with different text.")
-    
+
     with col2:
         st.markdown("### 📊 Quick Stats")
         if st.session_state.emotion_history:
@@ -292,18 +291,18 @@ if "🔍 Real-time Detection" in page:
                 <h2>{len(st.session_state.emotion_history)}</h2>
             </div>
             """, unsafe_allow_html=True)
-            
+
             emotions_list = [item['emotion'] for item in st.session_state.emotion_history]
             most_common = max(set(emotions_list), key=emotions_list.count)
             emoji = EMOTION_CONFIG[most_common]['emoji']
-            
+
             st.markdown(f"""
             <div class="metric-card">
                 <h3>🏆 Most Common</h3>
                 <h2>{emoji} {most_common.title()}</h2>
             </div>
             """, unsafe_allow_html=True)
-            
+
             if len(st.session_state.emotion_history) > 0:
                 avg_conf = np.mean([item['confidence'] for item in st.session_state.emotion_history])
                 st.markdown(f"""
@@ -316,68 +315,54 @@ if "🔍 Real-time Detection" in page:
 # PAGE 2: Emotion Trends
 elif "📈 Emotion Trends" in page:
     st.markdown("### 📈 Emotion Analysis Over Time")
-    
+
     if st.session_state.emotion_history:
         df_history = pd.DataFrame(st.session_state.emotion_history)
         df_history['timestamp'] = pd.to_datetime(df_history['timestamp'])
-        
+
         col1, col2 = st.columns(2)
-        
+
         with col1:
-            # Pie chart
             emotion_counts = df_history['emotion'].value_counts()
             colors = [EMOTION_CONFIG[e]['color'] for e in emotion_counts.index]
-            
+
             fig_pie = go.Figure(data=[go.Pie(
                 labels=emotion_counts.index,
                 values=emotion_counts.values,
                 marker=dict(colors=colors),
-                textinfo='label+percent',
-                hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}<extra></extra>'
+                textinfo='label+percent'
             )])
-            
-            fig_pie.update_layout(
-                title="Emotion Distribution",
-                height=400
-            )
+
+            fig_pie.update_layout(height=400)
             st.plotly_chart(fig_pie, use_container_width=True)
-        
+
         with col2:
-            # Bar chart
             fig_bar = px.bar(
                 df_history['emotion'].value_counts().reset_index(),
                 x='emotion',
                 y='count',
                 color='emotion',
-                color_discrete_map={e: EMOTION_CONFIG[e]['color'] for e in EMOTION_CONFIG},
-                title="Emotion Frequency"
+                color_discrete_map={e: EMOTION_CONFIG[e]['color'] for e in EMOTION_CONFIG}
             )
             fig_bar.update_layout(showlegend=False, height=400)
             st.plotly_chart(fig_bar, use_container_width=True)
-        
-        # Timeline
-        st.markdown("### ⏰ Emotion Timeline")
-        
+
         fig_timeline = px.scatter(
             df_history,
             x='timestamp',
             y='emotion',
             color='emotion',
             size='confidence',
-            hover_data=['text', 'confidence'],
-            color_discrete_map={e: EMOTION_CONFIG[e]['color'] for e in EMOTION_CONFIG},
-            title="Emotion Detection Timeline"
+            color_discrete_map={e: EMOTION_CONFIG[e]['color'] for e in EMOTION_CONFIG}
         )
-        fig_timeline.update_layout(height=400, showlegend=True)
+
+        fig_timeline.update_layout(height=400)
         st.plotly_chart(fig_timeline, use_container_width=True)
-        
-        # History table
-        st.markdown("### 📋 Analysis History")
+
         display_df = df_history[['timestamp', 'emotion', 'confidence', 'text']].copy()
         display_df['confidence'] = display_df['confidence'].apply(lambda x: f"{x*100:.1f}%")
         st.dataframe(display_df, use_container_width=True)
-        
-        # Download button
+
         csv = df_history.to_csv(index=False)
         st.download_button(
             label="📥 Download History as CSV",
@@ -385,37 +370,36 @@ elif "📈 Emotion Trends" in page:
             file_name=f"emotion_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv"
         )
-        
-        # Clear history button
+
         if st.button("🗑️ Clear History"):
             st.session_state.emotion_history = []
             st.rerun()
     else:
-        st.info("📝 No emotion data yet. Start analyzing text in the Real-time Detection page!")
+        st.info("📝 No emotion data yet. Start analyzing text in Real-time Detection!")
 
 # PAGE 3: Batch Analysis
 elif "📂 Batch Analysis" in page:
     st.markdown("### 📂 Upload CSV for Batch Analysis")
-    
-    st.info("Upload a CSV file with a column containing text to analyze emotions in bulk.")
-    
+
+    st.info("Upload a CSV file with a text column to analyze emotions in bulk.")
+
     uploaded_file = st.file_uploader("Choose a CSV file", type=['csv'])
-    
+
     if uploaded_file:
         df_upload = pd.read_csv(uploaded_file)
-        
+
         st.markdown("#### Preview of uploaded data:")
         st.dataframe(df_upload.head(10), use_container_width=True)
-        
-        text_column = st.selectbox("Select the text column to analyze", df_upload.columns)
-        
+
+        text_column = st.selectbox("Select the text column", df_upload.columns)
+
         if st.button("🚀 Analyze All Texts"):
             with st.spinner(f"Analyzing {len(df_upload)} texts..."):
                 emotions = []
                 confidences = []
-                
+
                 progress_bar = st.progress(0)
-                
+
                 for idx, text in enumerate(df_upload[text_column]):
                     emotion, probs = predict_emotion(str(text))
                     if emotion and probs:
@@ -424,48 +408,29 @@ elif "📂 Batch Analysis" in page:
                     else:
                         emotions.append('unknown')
                         confidences.append(0.0)
-                    
+
                     progress_bar.progress((idx + 1) / len(df_upload))
-                
+
                 df_upload['detected_emotion'] = emotions
                 df_upload['confidence'] = [f"{c*100:.1f}%" for c in confidences]
-                
-                st.success(f"✅ Analysis complete! Processed {len(df_upload)} texts.")
-                
-                # Display results
-                st.markdown("#### Analysis Results:")
+
+                st.success(f"✅ Analysis complete!")
+
+                st.markdown("#### Results:")
                 st.dataframe(df_upload, use_container_width=True)
-                
-                # Visualization
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    fig = px.histogram(
-                        df_upload,
-                        x='detected_emotion',
-                        color='detected_emotion',
-                        color_discrete_map={e: EMOTION_CONFIG[e]['color'] for e in EMOTION_CONFIG},
-                        title="Emotion Distribution in Dataset"
-                    )
-                    fig.update_layout(showlegend=False)
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                with col2:
-                    emotion_counts = df_upload['detected_emotion'].value_counts()
-                    colors = [EMOTION_CONFIG.get(e, {'color': '#gray'})['color'] for e in emotion_counts.index]
-                    
-                    fig_pie = go.Figure(data=[go.Pie(
-                        labels=emotion_counts.index,
-                        values=emotion_counts.values,
-                        marker=dict(colors=colors)
-                    )])
-                    fig_pie.update_layout(title="Emotion Distribution (%)")
-                    st.plotly_chart(fig_pie, use_container_width=True)
-                
-                # Download results
+
+                fig = px.histogram(
+                    df_upload,
+                    x='detected_emotion',
+                    color='detected_emotion',
+                    color_discrete_map={e: EMOTION_CONFIG[e]['color'] for e in EMOTION_CONFIG if e in df_upload['detected_emotion'].unique()}
+                )
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+
                 csv = df_upload.to_csv(index=False)
                 st.download_button(
-                    "📥 Download Analyzed Results",
+                    "📥 Download Results",
                     csv,
                     f"emotion_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     "text/csv"
@@ -474,28 +439,21 @@ elif "📂 Batch Analysis" in page:
 # PAGE 4: About
 elif "ℹ️ About" in page:
     st.markdown("### ℹ️ About This Application")
-    
+
     st.markdown("""
-    ## 🎭 Emotion Detection AI
-    
-    This application uses **Natural Language Processing (NLP)** and **Machine Learning** 
-    to detect emotions in text.
-    
-    ### 📊 Detected Emotions
-    
-    The model can detect **6 different emotions**:
+    ## 🎭 Emotion Detection AI  
+    This application uses NLP and Machine Learning to detect emotions in text.
     """)
-    
+
     cols = st.columns(3)
     emotions_info = [
-        ('sadness', '😢', 'Expressing sadness, disappointment, or sorrow'),
-        ('joy', '😄', 'Expressing happiness, excitement, or delight'),
-        ('love', '❤️', 'Expressing love, affection, or care'),
-        ('anger', '😠', 'Expressing anger, frustration, or annoyance'),
-        ('fear', '😨', 'Expressing fear, worry, or anxiety'),
-        ('surprise', '😮', 'Expressing surprise, shock, or amazement')
+        ('sadness', '😢', 'Expressing sadness or sorrow'),
+        ('joy', '😄', 'Expressing happiness or delight'),
+        ('love', '❤️', 'Expressing warmth or affection'),
+        ('anger', '😠', 'Expressing frustration or rage'),
+        ('fear', '😨', 'Expressing worry or anxiety')
     ]
-    
+
     for idx, (emotion, emoji, description) in enumerate(emotions_info):
         with cols[idx % 3]:
             st.markdown(f"""
@@ -509,37 +467,7 @@ elif "ℹ️ About" in page:
                 </p>
             </div>
             """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    ### 🔧 Technology Stack
-    
-    - **Streamlit**: Interactive web framework
-    - **Scikit-learn**: Machine learning library
-    - **NLTK**: Natural language processing
-    - **Plotly**: Interactive visualizations
-    - **TF-IDF Vectorization**: Text feature extraction
-    - **Logistic Regression**: Classification model
-    
-    ### 📈 Model Performance
-    
-    The model achieves high accuracy through:
-    - Advanced text preprocessing
-    - TF-IDF feature extraction
-    - Multi-class logistic regression
-    - Training on thousands of labeled examples
-    
-    ### 🚀 How to Use
-    
-    1. **Real-time Detection**: Enter text to instantly detect emotions
-    2. **Emotion Trends**: View your emotion analysis history
-    3. **Batch Analysis**: Upload CSV files for bulk emotion detection
-    
-    ### 👨‍💻 Developer Info
-    
-    Built with Python and Streamlit for educational and research purposes.
-    """)
 
-# Footer
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: black; padding: 20px;">
